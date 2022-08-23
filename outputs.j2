@@ -1,0 +1,101 @@
+outputs:
+  out_splunk_student:
+    systemFields: []
+    port: 9997
+    nestedFields: none
+    throttleRatePerSec: "0"
+    tls:
+      disabled: true
+      rejectUnauthorized: false
+    connectionTimeout: 10000
+    writeTimeout: 60000
+    enableMultiMetrics: false
+    enableACK: true
+    onBackpressure: drop
+    authType: manual
+    authToken: ""
+    type: splunk
+    host: {{everythingbox_ip}}
+  out_webhook_student:
+    systemFields: []
+    method: POST
+    format: custom
+    authType: none
+    concurrency: 5
+    maxPayloadSizeKB: 4096
+    maxPayloadEvents: 0
+    compress: false
+    timeoutSec: 30
+    flushPeriodSec: 1
+    onBackpressure: drop
+    customSourceExpression: _raw
+    customDropWhenNull: false
+    customEventDelimiter: ^\b$
+    customContentType: application/text
+    type: webhook
+    url: http://{{everythingbox_ip}}:10080
+  out_syslog_udp_student:
+    systemFields: []
+    protocol: udp
+    facility: 5
+    severity: 5
+    appName: Cribl
+    messageFormat: rfc3164
+    timestampFormat: syslog
+    throttleRatePerSec: "0"
+    maxRecordSize: 1500
+    connectionTimeout: 10000
+    writeTimeout: 60000
+    tls:
+      disabled: true
+    onBackpressure: drop
+    type: syslog
+    host: {{everythingbox_ip}}
+    port: 9514
+
+  out_tcp_json_student:
+    systemFields: []
+    compression: none
+    throttleRatePerSec: "0"
+    tls:
+      disabled: true
+    connectionTimeout: 10000
+    writeTimeout: 60000
+    onBackpressure: drop
+    authType: manual
+    authToken: ""
+    type: tcpjson
+    host: {{everythingbox_ip}}
+    port: 10070
+
+  out_splunk_tcp:
+    systemFields:
+      - cribl_pipe
+    type: router
+    rules:
+      - final: false
+        output: out_splunk_student
+        filter: "true"
+
+  out_syslog_udp:
+    systemFields: []
+    type: router
+    rules:
+      - final: false
+        output: out_syslog_udp_student
+        filter: "true"
+  out_webhook_http:
+    systemFields: []
+    type: router
+    rules:
+      - final: false
+        output: out_webhook_student
+        filter: "true"
+
+  out_tcp_json:
+    systemFields: []
+    type: router
+    rules:
+      - final: false
+        output: out_tcp_json_student
+        filter: "true"
