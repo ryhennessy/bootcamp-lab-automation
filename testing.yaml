@@ -1,0 +1,12 @@
+- name: Do stuff
+  hosts: everythingbox
+  become: yes
+  user: ec2-user
+  tasks:
+    - name: make a config file
+      ansible.builtin.copy:
+        dest: /tmp/stuff
+        content: |
+          host: yes
+          dog: no
+          funny: maybe

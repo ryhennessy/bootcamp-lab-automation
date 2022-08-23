@@ -1,0 +1,259 @@
+---
+- name: Install all the components on the everything box
+  hosts: everythingbox
+  remote_user: ec2-user
+  become: yes
+  vars_files:
+    - terraform_outputs.yaml 
+
+  tasks:
+  - name: Create the local cribl user
+    ansible.builtin.user:
+      name: cribl
+      home: /opt/cribl
+  - name: Install the lastest version of Cribl
+    ansible.builtin.unarchive:
+      src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-arm64') }}" 
+      dest: /opt
+      remote_src: yes
+      exclude: ['._*']
+  - name: Download Cribl everything box settings
+    amazon.aws.aws_s3:
+      bucket: "{{aws_s3_bucket}}"
+      object: everything/everything-cribl.tgz
+      dest: /tmp/everything-cribl.tgz
+      mode: get
+    delegate_to: 127.0.0.1
+    become: false 
+  - name: Copy downloaded settings to the everything box
+    ansible.builtin.copy:
+      src: /tmp/everything-cribl.tgz
+      dest: /tmp/everything-cribl.tgz
+  - name: Make Cribl local directory
+    ansible.builtin.file:
+      path: /opt/cribl/local/cribl
+      state: directory
+      mode: '0755'
+      owner: cribl
+      group: cribl
+  - name: Install all settings for the everything box
+    ansible.builtin.unarchive:
+      src: /tmp/everything-cribl.tgz
+      dest: /opt/cribl/local/cribl
+      exclude: ['._*']
+  - name: Download the Cribl output settings
+    amazon.aws.aws_s3:
+      bucket: "{{aws_s3_bucket}}"
+      object: everything/outputs.j2
+      dest: /tmp/outputs.j2
+      mode: get
+    delegate_to: 127.0.0.1
+    become: false
+  - name: Copy output settings to the everything box
+    ansible.builtin.template:
+      src: /tmp/outputs.j2
+      dest: /opt/cribl/local/cribl/outputs.yml
+  - name: Set correct permissions on the cribl directory
+    ansible.builtin.file:
+      path: /opt/cribl
+      owner: cribl
+      group: cribl
+      recurse: yes
+      state: directory
+  - name: Set correct access to cribl root dir
+    ansible.builtin.file:
+      path: /opt/cribl
+      mode: '0755'
+      state: directory
+  - name: Install the git package
+    ansible.builtin.yum:
+      name: git
+      state: latest
+  - name: Install Cribl as a systemd service
+    ansible.builtin.command:
+      cmd: /opt/cribl/bin/cribl boot-start enable -u cribl
+  - name: Make sure Cribl service is started
+    ansible.builtin.service:
+      name: cribl
+      state: started
+  - name: Install Java for ElasticSearch
+    ansible.builtin.yum:
+      name: java-1.8.0
+      state: latest
+  - name: Get repo file for the Elastic
+    amazon.aws.aws_s3:
+      bucket: "{{aws_s3_bucket}}"
+      object: everythingbox/repos.tgz
+      dest: /tmp/repos.tgz
+      mode: get
+    delegate_to: 127.0.0.1
+    become: false
+  - name: Copy ElasticSearch Repo file to Everything Box
+    ansible.builtin.copy:
+      src: /tmp/repos.tgz
+      dest: /tmp/repos.tgz
+  - name: Install the new repository files
+    ansible.builtin.unarchive:
+      src: /tmp/repos.tgz
+      dest: /etc/yum.repos.d
+  - name: Install ElasticSearch
+    ansible.builtin.yum:
+      name: elasticsearch
+      state: latest
+  - name: Create ElasticSearch config file
+    ansible.builtin.copy:
+      dest: /etc/elasticsearch/elasticsearch.yml
+      content: |
+         node.name: node-1
+         network.host: 0.0.0.0
+         cluster.initial_master_nodes: node-1
+  - name: Start the ElasticSearch service
+    ansible.builtin.systemd:
+      daemon_reload: yes
+      name: elasticsearch
+      enabled: yes
+      state: started
+  - name: Install Kibana
+    ansible.builtin.yum:
+      name: kibana
+      state: latest  
+  - name: Configure Kibana
+    ansible.builtin.copy:
+      dest: /etc/kibana/kibana.yml
+      content: |
+         server.host: 0.0.0.0
+  - name: Start the Kibana service
+    ansible.builtin.systemd:
+      name: kibana
+      daemon_reload: yes
+      enabled: yes
+      state: started
+  - name: Install Grafana
+    ansible.builtin.yum:
+      name:
+        - grafana
+        - fontconfig
+        - freetype*
+        - urw-fonts
+      state: latest
+  - name: Start the Grafana service
+    ansible.builtin.systemd:
+      name: grafana-server
+      enabled: yes
+      daemon_reload: yes
+      state: started
+  - name: Wait for the Grafan service to fully start (20 Seconds)
+    ansible.builtin.pause
+      seconds: 20
+  - name: Set the Grafana admin password
+    ansible.builtin.command:
+      cmd: /usr/sbin/grafana-cli admin reset-admin-password cr1bluser
+  - name: Create the minio user
+    ansible.builtin.user:
+      name: minio
+  - name: Download the minio binary
+    ansible.builtin.get_url:
+      url:  https://dl.min.io/server/minio/release/linux-arm64/minio
+      owner: minio
+      group: minio
+      mode: '0755'
+      dest: /usr/local/bin/minio
+  - name: Make the Minio data directory
+    ansible.builtin.file:
+      state: directory
+      path: /data/minio
+      recurse: yes
+      owner: minio
+      group: minio
+  - name: Create Minio configuration file
+    ansible.builtin.copy:
+      dest: /etc/default/minio
+      mode: '0644'
+      content: |
+        # Volume to be used for Minio server.
+        MINIO_VOLUMES="/data"
+        # Use if you want to run Minio on a custom port.
+        MINIO_OPTS="--address :9001 --console-address :9002"
+        MINIO_ROOT_USER=admin
+        MINIO_ROOT_PASSWORD=cr1bluser
+  - name: Create Minio systemd service file
+    ansible.builtin.copy:
+      dest: /etc/systemd/system/minio.service
+      mode: '0644'
+      content: |
+        [Unit]
+        Description=Minio
+        Documentation=https://docs.minio.io
+        Wants=network-online.target
+        After=network-online.target
+        AssertFileIsExecutable=/usr/local/bin/minio
+
+        [Service]
+        WorkingDirectory=/data
+        User=minio
+        Group=minio
+        EnvironmentFile=-/etc/default/minio
+        ExecStartPre=/bin/bash -c "if [ -z /data ]; then echo \"Variable MINIO_VOLUMES not set in /etc/default/minio\"; exit 1; fi"
+        ExecStart=/usr/local/bin/minio server --address :9001 --console-address :9002 /data
+
+        # Let systemd restart this service always
+        Restart=always
+        # Specifies the maximum file descriptor number that can be opened by this process
+        LimitNOFILE=65536
+ 
+        # Disable timeout logic and wait until process is stopped
+        TimeoutStopSec=infinity
+        SendSIGKILL=no
+
+        [Install]
+        WantedBy=multi-user.target       
+  - name: Start the Minio service
+    ansible.builtin.systemd:
+      daemon_reload: yes
+      enabled: yes
+      name: minio
+      state: started
+  - name: Download Splunk Binary
+    amazon.aws.aws_s3:
+      bucket: "{{aws_s3_bucket}}"
+      object: everything/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      dest: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      mode: get
+    delegate_to: 127.0.0.1
+    become: false 
+  - name: Copy downloaded settings to the everything box
+    ansible.builtin.copy:
+      src: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      dest: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+  - name: Uncompress the Splunk deployment
+    ansible.builtin.unarchive:
+      src: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      dest: /opt
+  - name: Add Splunk User
+    ansible.builtin.user:
+      name: splunk
+      home: /opt/splunk
+  - name: Chown splunk binaries to the splunk user
+    file:
+      state: directory
+      owner: splunk
+      group: splunk
+      recurse: yes
+  - name: Install the Splunk systemd service
+    ansible.builtin.cmd:
+      cmd: /opt/splunk/bin/splunk enable boot-start -user splunk --no-prompt --answer-yes --accept-license --seed-passwd cr1bluser
+  - name: Configure Splunk Inputs
+    ansible.builtin.copy:
+      dest: /opt/splunk/etc/system/local/inputs.conf
+      owner: splunk
+      group: splunk
+      mode: '0644'
+      content: |
+        [splunktcp://9997]
+        connection_host = ip
+  - name: Start the Spunk Service
+    ansible.builtin.systemd:
+      name: splunk
+      deameon_reload: yes
+      state: started
+      enabled: yes
