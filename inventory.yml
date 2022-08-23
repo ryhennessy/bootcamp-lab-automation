@@ -1,4 +1,0 @@
-lab:
-  hosts:
-    everythingbox:
-      ansible_host: 13.59.45.227
