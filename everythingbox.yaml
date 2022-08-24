@@ -13,14 +13,14 @@
       home: /opt/cribl
   - name: Install the lastest version of Cribl
     ansible.builtin.unarchive:
-      src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-arm64') }}" 
+      src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-x64') }}" 
       dest: /opt
       remote_src: yes
       exclude: ['._*']
   - name: Download Cribl everything box settings
     amazon.aws.aws_s3:
       bucket: "{{aws_s3_bucket}}"
-      object: everything/everything-cribl.tgz
+      object: everythingbox/everything-cribl.tgz
       dest: /tmp/everything-cribl.tgz
       mode: get
     delegate_to: 127.0.0.1
@@ -44,7 +44,7 @@
   - name: Download the Cribl output settings
     amazon.aws.aws_s3:
       bucket: "{{aws_s3_bucket}}"
-      object: everything/outputs.j2
+      object: everythingbox/outputs.j2
       dest: /tmp/outputs.j2
       mode: get
     delegate_to: 127.0.0.1
@@ -104,9 +104,11 @@
     ansible.builtin.copy:
       dest: /etc/elasticsearch/elasticsearch.yml
       content: |
-         node.name: node-1
-         network.host: 0.0.0.0
-         cluster.initial_master_nodes: node-1
+        node.name: node-1
+        path.data: /var/lib/elasticsearch
+        path.logs: /var/log/elasticsearch
+        network.host: 0.0.0.0
+        cluster.initial_master_nodes: ["node-1"]
   - name: Start the ElasticSearch service
     ansible.builtin.systemd:
       daemon_reload: yes
@@ -153,7 +155,7 @@
       name: minio
   - name: Download the minio binary
     ansible.builtin.get_url:
-      url:  https://dl.min.io/server/minio/release/linux-arm64/minio
+      url:  https://dl.min.io/server/minio/release/linux-amd64/minio
       owner: minio
       group: minio
       mode: '0755'
@@ -216,7 +218,7 @@
   - name: Download Splunk Binary
     amazon.aws.aws_s3:
       bucket: "{{aws_s3_bucket}}"
-      object: everything/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      object: everythingbox/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
       dest: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
       mode: get
     delegate_to: 127.0.0.1
@@ -255,6 +257,10 @@
   - name: Start the Spunk Service
     ansible.builtin.systemd:
       name: splunk
-      deameon_reload: yes
+      daemon_reload: yes
       state: started
       enabled: yes
+  - name: Clean up the Spunk Archive
+    ansible.builtin.file:
+      path: /tmp/splunk-8.2.2-87344edfcdb4-Linux-x86_64.tgz
+      state: absent
