@@ -41,6 +41,29 @@
       src: /tmp/everything-cribl.tgz
       dest: /opt/cribl/local/cribl
       exclude: ['._*']
+  - name: Downaload the sample data
+    amazon.aws.aws_s3:
+      bucket: "{{aws_s3_bucket}}"
+      object: everythingbox/samples.tgz
+      dest: /tmp/samples.tgz
+      mode: get
+    delegate_to: 127.0.0.1
+    become: false
+  - name: Copy sample data to the everything box
+    ansible.builtin.copy:
+      src: /tmp/samples.tgz
+      dest: /tmp/samples.tgz
+  - name: Make Cribl samples directory
+    ansible.builtin.file:
+      state: directory
+      path: /opt/cribl/data/samples
+      mode: '0755'
+      owner: cribl
+      group: cribl
+  - name: Extract sample information
+    ansible.builtin.unarchive:
+      src: /tmp/samples.tgz
+      dest: /opt/cribl/data/samples
   - name: Download the Cribl output settings
     amazon.aws.aws_s3:
       bucket: "{{aws_s3_bucket}}"
