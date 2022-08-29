@@ -1,3 +1,8 @@
+resource "random_integer" "subnet_index" {
+  min = 0 
+  max = 10
+}
+
 resource "random_string" "random" {
   length  = 8
   special = false
@@ -34,15 +39,10 @@ data "aws_ami" "amzn2_ami2" {
   }
 }
 
-data "aws_vpc" "vpc" {
-  id = var.vpc_id
+data "aws_subnets" "subnets" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 }
 
-data "aws_subnet_ids" "vpc_subnets" {
-  vpc_id = var.vpc_id
-}
-
-data "aws_subnet" "subnets" {
-  for_each = data.aws_subnet_ids.vpc_subnets.ids
-  id       = each.value
-}

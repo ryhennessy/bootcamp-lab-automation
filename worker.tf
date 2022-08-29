@@ -1,5 +1,4 @@
 resource "aws_instance" "worker" {
-  count         = var.instance_count
   ami           = data.aws_ami.amzn2_ami.id
   instance_type = var.worker_instance_type
   key_name      = aws_key_pair.ec2_key.key_name

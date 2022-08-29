@@ -15,10 +15,6 @@ variable "instance_count" {
   default = 1
 }
 
-variable "aws_security_group" {
-  type = string
-}
-
 variable "everything_box_instance_type" {
   type    = string
   default = "t3.large"

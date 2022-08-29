@@ -1,11 +1,12 @@
 ---
 - name: Install all the components on the everything box
-  hosts: everythingbox
+  hosts: "tag_Name_Everything_{{student}}_Box"
   remote_user: ec2-user
   become: yes
   vars_files:
     - terraform_outputs.yaml 
-
+  vars:
+    ansible_ssh_private_key_file: temp.pem
   tasks:
   - name: Create the local cribl user
     ansible.builtin.user:
@@ -39,7 +40,7 @@
   - name: Install all settings for the everything box
     ansible.builtin.unarchive:
       src: /tmp/everything-cribl.tgz
-      dest: /opt/cribl/local/cribl
+      dest: /
       exclude: ['._*']
   - name: Downaload the sample data
     amazon.aws.aws_s3:
@@ -56,7 +57,7 @@
   - name: Make Cribl samples directory
     ansible.builtin.file:
       state: directory
-      path: /opt/cribl/data/samples
+      path: /
       mode: '0755'
       owner: cribl
       group: cribl
@@ -92,9 +93,9 @@
     ansible.builtin.yum:
       name: git
       state: latest
-  # - name: Install Cribl as a systemd service
-  #   ansible.builtin.command:
-  #     cmd: /opt/cribl/bin/cribl boot-start enable -u cribl
+  - name: Install Cribl as a systemd service
+    ansible.builtin.command:
+      cmd: /opt/cribl/bin/cribl boot-start enable -u cribl
   - name: Make sure Cribl service is started
     ansible.builtin.service:
       name: cribl
