@@ -1,0 +1,127 @@
+---
+- name: Set up the requested lab on the Cribl leader.
+  hosts: "tag_Name_Leader_{{student}}_Box"
+  remote_user: ec2-user
+  become: yes
+  vars_files:
+    - terraform_outputs.yaml 
+  vars:
+    ansible_ssh_private_key_file: temp.pem
+  tasks:
+    - block:
+        - name: Create the local cribl user
+          ansible.builtin.user:
+            name: cribl
+            home: /home/cribl
+        - name: Install the lastest version of Cribl
+          ansible.builtin.unarchive:
+            src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-arm64') }}" 
+            dest: /opt
+            remote_src: yes
+            exclude: ['._*']
+        - name: Set ownership on the cribl directory
+          ansible.builtin.file:
+            path: /opt/cribl
+            owner: cribl
+            group: cribl
+            recurse: yes
+            state: directory
+        - name: Install git on the leader node
+          ansible.builtin.yum:
+            name: git
+            state: latest
+        - name: Set Cribl to start on reboot
+          ansible.builtin.command:
+            cmd: /opt/cribl/bin/cribl boot-start enable -u cribl
+        - name: Create the Ansible facts directory
+          ansible.builtin.file:
+            path: /etc/ansible/facts.d/
+            state: directory
+        - name: Set a presistent ansible fact that the Cribl service has been installed
+          ansible.builtin.copy:
+            dest: /etc/ansible/facts.d/cribl.fact
+            content: |
+               [cribl]
+               service=yes
+               breakingpoint={{breakingpoint}} 
+      when: breakingpoint > 0  and ansible_local['cribl']['cribl']['breakingpoint'] is undefined
+    - block:
+        - name: Download Cribl breaking point settings
+          amazon.aws.aws_s3:
+            bucket: "{{aws_s3_bucket}}"
+            object: leader/breakingpoint-{{breakingpoint}}.tar
+            dest: /tmp/breakingpoint-{{breakingpoint}}.tar
+            profile: "{{aws_profile}}"
+            mode: get
+          delegate_to: 127.0.0.1
+          become: false
+        - name: Copy downloaded settings to the everything box
+          ansible.builtin.copy:
+            src: /tmp/breakingpoint-{{breakingpoint}}.tar
+            dest: /tmp/breakingpoint-{{breakingpoint}}.tar
+        - name: Apply the updated changes to leader node.
+          ansible.builtin.unarchive:
+            src: /tmp/breakingpoint-{{breakingpoint}}.tar
+            dest: /opt/cribl
+      when: breakingpoint > 1
+    - name: Set ownership on the cribl directory again
+      ansible.builtin.file:
+        path: /opt/cribl
+        owner: cribl
+        group: cribl
+        recurse: yes
+        state: directory
+    - name: Update the facts file with the breaking point
+      community.general.ini_file:
+         path: /etc/ansible/facts.d/cribl.fact
+         section: cribl
+         option: breakingpoint
+         value: "{{breakingpoint}}"
+    - name: Start the Cribl service
+      ansible.builtin.systemd:
+         name: cribl
+         state: restarted
+
+
+- name: Set up the requested lab on the Cribl worker.
+  hosts: "tag_Name_Worker_{{student}}_Box"
+  remote_user: ec2-user
+  become: yes
+  vars_files:
+    - terraform_outputs.yaml 
+  vars:
+    ansible_ssh_private_key_file: temp.pem
+  tasks:
+    - name: Create an changes on the Cribl nodes if requested.
+      block:
+        - name: Create the local cribl user
+          ansible.builtin.user:
+            name: cribl
+            home: /home/cribl
+        - name: Install the lastest version of Cribl
+          ansible.builtin.unarchive:
+            src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-arm64') }}" 
+            dest: /opt
+            remote_src: yes
+            exclude: ['._*']
+        - name: Set ownership on the cribl directory
+          ansible.builtin.file:
+            path: /opt/cribl
+            owner: cribl
+            group: cribl
+            recurse: yes
+            state: directory
+        # - name: Download Cribl everything box settings
+        #   amazon.aws.aws_s3:
+        #     bucket: "{{aws_s3_bucket}}"
+        #     object: leader/{{labnumber}}/leader-cribl.tgz
+        #     dest: /tmp/leader-cribl.tgz
+        #     mode: get
+        #   delegate_to: 127.0.0.1
+        #   become: false
+        # - name: Copy downloaded settings to the everything box
+        #   ansible.builtin.copy:
+        #     src: /tmp/leader-cribl.tgz
+        #     dest: /tmp/leader-cribl.tgz
+      when: breakingpoint > 9   
+...
