@@ -52,5 +52,9 @@ variable "worker_service_ports" {
 
 variable "aws_s3_bucket" {
   type    = string
-  default = "labbuildout"
+  default = "se-bootcamp-lab-data"
+}
+
+variable "breakingpoint" {
+  default = 0
 }

@@ -1,5 +1,5 @@
 resource "random_integer" "subnet_index" {
-  min = 0 
+  min = 0
   max = 10
 }
 

@@ -2,9 +2,9 @@ resource "aws_instance" "worker" {
   ami           = data.aws_ami.amzn2_ami.id
   instance_type = var.worker_instance_type
   key_name      = aws_key_pair.ec2_key.key_name
-  subnet_id     = element(flatten([for s in data.aws_subnet.subnets : s.id]), 0)
+  subnet_id     = element(data.aws_subnets.subnets.ids, random_integer.subnet_index.result)
   tags = {
-    Name      = "Worker-${count.index + 1}"
+    Name      = "Worker_${terraform.workspace}_Box"
     Permanent = "True"
   }
 
@@ -16,7 +16,7 @@ resource "aws_instance" "worker" {
 resource "aws_security_group" "worker" {
   name        = "student-${random_string.random.result}-worker"
   description = "Worker node for Student ${random_string.random.result}"
-  vpc_id      = data.aws_vpc.vpc.id
+  vpc_id      = var.vpc_id
   dynamic "ingress" {
     for_each = var.worker_service_ports
     content {

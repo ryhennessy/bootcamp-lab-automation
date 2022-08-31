@@ -2,9 +2,9 @@ resource "aws_instance" "leader" {
   ami           = data.aws_ami.amzn2_ami.id
   instance_type = var.leader_instance_type
   key_name      = aws_key_pair.ec2_key.key_name
-  subnet_id     = element(flatten([for s in data.aws_subnet.subnets : s.id]), 0)
+  subnet_id     = element(data.aws_subnets.subnets.ids, random_integer.subnet_index.result)
   tags = {
-    Name      = "Leader-${count.index + 1}"
+    Name      = "Leader_${terraform.workspace}_Box"
     Permanent = "True"
   }
 
@@ -16,7 +16,7 @@ resource "aws_instance" "leader" {
 resource "aws_security_group" "leader" {
   name        = "student-${random_string.random.result}-leader"
   description = "Leader node for Student ${random_string.random.result}"
-  vpc_id      = data.aws_vpc.vpc.id
+  vpc_id      = var.vpc_id
   dynamic "ingress" {
     for_each = var.leader_service_ports
     content {
