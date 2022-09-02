@@ -1,12 +1,24 @@
 - name: Do stuff
-  hosts: everythingbox
+  hosts: "tag_Name_Everything_{{student}}_Box" 
   become: yes
   user: ec2-user
+  vars:
+    ansible_ssh_private_key_file: temp.pem
+  vars_files:
+    - terraform_outputs.yaml
   tasks:
-    - name: make a config file
-      ansible.builtin.copy:
-        dest: /tmp/stuff
-        content: |
-          host: yes
-          dog: no
-          funny: maybe
+   - name: Copy output settings to the everything box
+     ansible.builtin.template:
+       src: outputs.j2
+       dest: /opt/cribl/local/cribl/outputs.yml
+   - name: Set correct permissions on the cribl directory
+     ansible.builtin.file:
+        path: /opt/cribl
+        owner: cribl
+        group: cribl
+        recurse: yes
+        state: directory
+   - name: restart cribl
+     ansible.builtin.systemd:
+        state: restarted
+        name: cribl

@@ -3,9 +3,9 @@ output "ssh_key" {
   sensitive = true
 }
 
-# output "ec2_everything_box_ip" {
-#   value = aws_instance.everything_box.public_ip
-# }
+output "ec2_everything_box_ip" {
+  value = aws_instance.everything_box.public_ip
+ }
 
 output "ec2_leader_ip" {
   value = aws_instance.leader.public_ip
@@ -22,7 +22,7 @@ resource "local_file" "tf_ansible_vars_file_new" {
     
     student: ${terraform.workspace}
     aws_s3_bucket: ${var.aws_s3_bucket}
-    everythingbox_ip: {aws_instance.everything_box.public_ip}
+    everythingbox_ip: ${aws_instance.everything_box.public_ip}
     leaderbox_ip: ${aws_instance.leader.public_ip}
     workerbox_ip: ${aws_instance.worker.public_ip}
     breakingpoint: ${var.breakingpoint}

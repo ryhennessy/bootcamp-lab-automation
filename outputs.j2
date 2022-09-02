@@ -15,7 +15,7 @@ outputs:
     authType: manual
     authToken: ""
     type: splunk
-    host: {{everythingbox_ip}}
+    host: {{workerbox_ip}}
   out_webhook_student:
     systemFields: []
     method: POST
@@ -33,7 +33,7 @@ outputs:
     customEventDelimiter: ^\b$
     customContentType: application/text
     type: webhook
-    url: http://{{everythingbox_ip}}:10080
+    url: http://{{workerbox_ip}}:10080
   out_syslog_udp_student:
     systemFields: []
     protocol: udp
@@ -50,7 +50,7 @@ outputs:
       disabled: true
     onBackpressure: drop
     type: syslog
-    host: {{everythingbox_ip}}
+    host: {{workerbox_ip}}
     port: 9514
 
   out_tcp_json_student:
@@ -65,7 +65,7 @@ outputs:
     authType: manual
     authToken: ""
     type: tcpjson
-    host: {{everythingbox_ip}}
+    host: {{workerbox_ip}}
     port: 10070
 
   out_splunk_tcp:

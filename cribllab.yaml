@@ -37,13 +37,6 @@
           ansible.builtin.file:
             path: /etc/ansible/facts.d/
             state: directory
-        - name: Set a presistent ansible fact that the Cribl service has been installed
-          ansible.builtin.copy:
-            dest: /etc/ansible/facts.d/cribl.fact
-            content: |
-               [cribl]
-               service=yes
-               breakingpoint={{breakingpoint}} 
       when: breakingpoint > 0  and ansible_local['cribl']['cribl']['breakingpoint'] is undefined
     - block:
         - name: Download Cribl breaking point settings
@@ -55,7 +48,7 @@
             mode: get
           delegate_to: 127.0.0.1
           become: false
-        - name: Copy downloaded settings to the everything box
+        - name: Copy downloaded settings to the leader box
           ansible.builtin.copy:
             src: /tmp/breakingpoint-{{breakingpoint}}.tar
             dest: /tmp/breakingpoint-{{breakingpoint}}.tar
@@ -81,6 +74,19 @@
       ansible.builtin.systemd:
          name: cribl
          state: restarted
+    - name: Push config to worker groups
+      ansible.builtin.command: "{{ item }}"
+      with_items:
+        - /opt/cribl/bin/cribl auth login
+        - /opt/cribl/bin/cribl git commit-deploy -g datacenter_us
+        - /opt/cribl/bin/cribl git commit-deploy -g default 
+      become: yes
+      become_user: cribl
+      environment:
+        CRIBL_USERNAME: admin
+        CRIBL_PASSWORD: cr1bluser
+        CRIBL_HOST: https://localhost:9000
+      when: breakingpoint > 8
 
 
 - name: Set up the requested lab on the Cribl worker.
@@ -92,36 +98,47 @@
   vars:
     ansible_ssh_private_key_file: temp.pem
   tasks:
-    - name: Create an changes on the Cribl nodes if requested.
-      block:
-        - name: Create the local cribl user
-          ansible.builtin.user:
-            name: cribl
-            home: /home/cribl
-        - name: Install the lastest version of Cribl
-          ansible.builtin.unarchive:
-            src: "{{ lookup('ansible.builtin.url', 'https://cdn.cribl.io/dl/latest-arm64') }}" 
-            dest: /opt
-            remote_src: yes
-            exclude: ['._*']
-        - name: Set ownership on the cribl directory
-          ansible.builtin.file:
-            path: /opt/cribl
-            owner: cribl
-            group: cribl
-            recurse: yes
-            state: directory
-        # - name: Download Cribl everything box settings
-        #   amazon.aws.aws_s3:
-        #     bucket: "{{aws_s3_bucket}}"
-        #     object: leader/{{labnumber}}/leader-cribl.tgz
-        #     dest: /tmp/leader-cribl.tgz
-        #     mode: get
-        #   delegate_to: 127.0.0.1
-        #   become: false
-        # - name: Copy downloaded settings to the everything box
-        #   ansible.builtin.copy:
-        #     src: /tmp/leader-cribl.tgz
-        #     dest: /tmp/leader-cribl.tgz
-      when: breakingpoint > 9   
+    - name: Create the Ansible facts directory
+      ansible.builtin.file:
+        path: /etc/ansible/facts.d/
+        state: directory
+    - name: Set a presistent ansible fact for the breaking point
+      community.general.ini_file:
+        path: /etc/ansible/facts.d/cribl.fact
+        section: cribl
+        option: breakingpoint
+        value: "{{breakingpoint}}"
+    - name: Update Ansible facts information
+      setup:
+    - block:
+        - name: Copy up the worker bootstrap script
+          ansible.builtin.template:
+            src: install_worker.sh.j2
+            dest: /tmp/install_worker.sh
+            mode: 0700
+        - name: Run the bootstrap script
+          ansible.builtin.command:
+            cmd: /tmp/install_worker.sh
+        - name: Set bootstrap check bit
+          community.general.ini_file:
+            path: /etc/ansible/facts.d/cribl.fact
+            section: cribl
+            option: bootstrap
+            value: yes
+      when: breakingpoint > 9 and ansible_local['cribl']['cribl']['bootstrap'] is undefined 
+
+
+- name: Set up the requested lab on the Cribl Everthing Box..
+  hosts: "tag_Name_Everything_{{student}}_Box"
+  remote_user: ec2-user
+  become: yes
+  vars_files:
+    - terraform_outputs.yaml 
+  vars:
+    ansible_ssh_private_key_file: temp.pem
+  tasks:
+    - name: Configure Splunk Indexes
+      ansible.builtin.command: "terraform -chdir=splunk apply -var=everything_splunk={{ everythingbox_ip }} -auto-approve"
+      become: no
+      delegate_to: 127.0.0.1
 ...
