@@ -5,7 +5,7 @@ output "ssh_key" {
 
 output "ec2_everything_box_ip" {
   value = aws_instance.everything_box.public_ip
- }
+}
 
 output "ec2_leader_ip" {
   value = aws_instance.leader.public_ip
@@ -29,4 +29,10 @@ resource "local_file" "tf_ansible_vars_file_new" {
     aws_profile: ${var.aws_profile}
     DOC
   filename = "./terraform_outputs.yaml"
+}
+
+resource "local_file" "tf_ansible_pemfile" {
+  content  = tls_private_key.ssh_key.private_key_pem
+  filename = "./temp.pem"
+  file_permission = "0600"
 }

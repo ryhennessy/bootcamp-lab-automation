@@ -46,8 +46,15 @@ variable "leader_service_ports" {
 }
 
 variable "worker_service_ports" {
-  type    = list(any)
-  default = [22, 8088, 9514, 9997, 10070, 10080]
+  type = list(any)
+  default = [
+    { port = 22, protocol = "tcp" },
+    { port = 8088, protocol = "tcp" },
+    { port = 9514, protocol = "udp" },
+    { port = 9997, protocol = "tcp" },
+    { port = 10070, protocol = "tcp" },
+    { port = 10080, protocol = "tcp" }
+  ]
 }
 
 variable "aws_s3_bucket" {

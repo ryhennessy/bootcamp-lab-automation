@@ -57,6 +57,36 @@
             src: /tmp/breakingpoint-{{breakingpoint}}.tar
             dest: /opt/cribl
       when: breakingpoint > 1
+    - block:
+        - name: Download Outputs File
+          amazon.aws.aws_s3:
+            bucket: "{{aws_s3_bucket}}"
+            object: leader/bp-14-output.yaml.j2
+            dest: /tmp/output.yaml.j2
+            profile: "{{aws_profile}}"
+            mode: get
+          delegate_to: 127.0.0.1
+          become: false
+        - name: Set up outputs config file for datacenter group
+          ansible.builtin.template:
+            src: /tmp/output.yaml.j2
+            dest: /opt/cribl/groups/datacenter_us/local/cribl/outputs.yml
+      when: breakingpoint > 14 and breakingpoint < 34
+    - block:
+        - name: Download Outputs File
+          amazon.aws.aws_s3:
+            bucket: "{{aws_s3_bucket}}"
+            object: leader/bp-22-output.yaml.j2
+            dest: /tmp/output.yaml.j2
+            profile: "{{aws_profile}}"
+            mode: get
+          delegate_to: 127.0.0.1
+          become: false
+        - name: Set up outputs config file for datacenter group
+          ansible.builtin.template:
+            src: /tmp/output.yaml.j2
+            dest: /opt/cribl/groups/datacenter_us/local/cribl/outputs.yml
+      when: breakingpoint > 33 and breakingpoint < 40 
     - name: Set ownership on the cribl directory again
       ansible.builtin.file:
         path: /opt/cribl
@@ -141,4 +171,49 @@
       ansible.builtin.command: "terraform -chdir=splunk apply -var=everything_splunk={{ everythingbox_ip }} -auto-approve"
       become: no
       delegate_to: 127.0.0.1
+      when: breakingpoint > 12
+    - block:
+        - name: Get the data gen config file
+          amazon.aws.aws_s3:
+            bucket: "{{aws_s3_bucket}}"
+            object: everythingbox/inputs-15.yml
+            dest: /tmp/inputs.yml
+            profile: "{{aws_profile}}"
+            mode: get
+          delegate_to: 127.0.0.1
+          become: false
+        - name: Copy up the data gen file
+          ansible.builtin.copy:
+            src: /tmp/inputs.yml
+            dest: /opt/cribl/local/cribl/inputs.yml
+            owner: cribl
+            group: cribl
+        - name: Restart datagen instance to pick up the changes
+          systemd:
+            name: cribl
+            state: restarted
+      when: breakingpoint > 14 and breakingpoint < 22
+    - block:
+        - name: Get the data gen config file
+          amazon.aws.aws_s3:
+            bucket: "{{aws_s3_bucket}}"
+            object: everythingbox/inputs-22.yml
+            dest: /tmp/inputs.yml
+            profile: "{{aws_profile}}"
+            mode: get
+          delegate_to: 127.0.0.1
+          become: false
+        - name: Copy up the data gen file
+          ansible.builtin.copy:
+            src: /tmp/inputs.yml
+            dest: /opt/cribl/local/cribl/inputs.yml
+            owner: cribl
+            group: cribl
+        - name: Restart datagen instance to pick up the changes
+          systemd:
+            name: cribl
+            state: restarted
+      when: breakingpoint > 21  and breakingpoint <= 30 
+
+
 ...

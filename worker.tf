@@ -20,9 +20,9 @@ resource "aws_security_group" "worker" {
   dynamic "ingress" {
     for_each = var.worker_service_ports
     content {
-      from_port   = ingress.value
-      to_port     = ingress.value
-      protocol    = "tcp"
+      from_port   = ingress.value.port
+      to_port     = ingress.value.port
+      protocol    = ingress.value.protocol
       cidr_blocks = ["0.0.0.0/0"]
     }
   }

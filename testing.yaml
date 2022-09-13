@@ -1,5 +1,5 @@
 - name: Do stuff
-  hosts: "tag_Name_Everything_{{student}}_Box" 
+  hosts: "tag_Name_Leader_{{student}}_Box" 
   become: yes
   user: ec2-user
   vars:
@@ -7,18 +7,28 @@
   vars_files:
     - terraform_outputs.yaml
   tasks:
-   - name: Copy output settings to the everything box
-     ansible.builtin.template:
-       src: outputs.j2
-       dest: /opt/cribl/local/cribl/outputs.yml
-   - name: Set correct permissions on the cribl directory
-     ansible.builtin.file:
-        path: /opt/cribl
-        owner: cribl
-        group: cribl
-        recurse: yes
-        state: directory
-   - name: restart cribl
-     ansible.builtin.systemd:
-        state: restarted
-        name: cribl
+    - name: Download Outputs File
+      amazon.aws.aws_s3:
+         bucket: "{{aws_s3_bucket}}"
+         object: leader/bp-{{breakingpoint}}-output.yaml.j2
+         dest: /tmp/bp-{{breakingpoint}}-output.yaml.j2
+         profile: "{{aws_profile}}"
+         mode: get
+      delegate_to: 127.0.0.1
+      become: false
+    - name: Set up outputs config file for datacenter group
+      ansible.builtin.template:
+         src: /tmp/bp-{{breakingpoint}}-output.yaml.j2
+         dest: /opt/cribl/groups/datacenter_us/local/cribl/outputs.yml
+    - name: Push config to worker nodes
+      ansible.builtin.command: "{{ item }}"
+      with_items:
+        - /opt/cribl/bin/cribl auth login
+        - /opt/cribl/bin/cribl git commit-deploy -g datacenter_us
+        - /opt/cribl/bin/cribl git commit-deploy -g default
+      become: yes
+      become_user: cribl
+      environment:
+        CRIBL_USERNAME: admin
+        CRIBL_PASSWORD: cr1bluser
+        CRIBL_HOST: https://localhost:9000
